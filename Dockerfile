@@ -3,6 +3,7 @@ FROM openjdk:8u212-jre-alpine
 LABEL maintainer "itzg"
 
 RUN apk add --no-cache -U \
+  curl \
   openssl \
   imagemagick \
   lsof \
@@ -16,8 +17,22 @@ RUN apk add --no-cache -U \
   tzdata \
   rsync \
   nano \
-  python python-dev py2-pip
+  python python-dev py2-pip \
+  supervisor
 
+RUN curl -s https://www.zerotier.com/dist/ZeroTierOneInstaller-linux-x64 > ZeroTierOneInstaller-linux-x64.sh && \
+    chmod a+x ZeroTierOneInstaller-linux-x64.sh && \
+    ./ZeroTierOneInstaller-linux-x64.sh && \
+    rm ZeroTierOneInstaller-linux-x64.sh && \
+    sudo service zerotier-one stop && \
+    rm /var/lib/zerotier-one/zerotier-one.pid && \
+    echo "manual" >> /etc/init/zerotier-one.override && \
+    rm /var/lib/zerotier-one/identity.secret && \
+    rm /var/lib/zerotier-one/identity.public
+
+ADD supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+EXPOSE 9993/udp
 RUN pip install mcstatus yq
 
 HEALTHCHECK --start-period=1m CMD mcstatus localhost:$SERVER_PORT ping
@@ -63,3 +78,4 @@ ENV UID=1000 GID=1000 \
 
 COPY start* /
 RUN dos2unix /start* && chmod +x /start*
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
